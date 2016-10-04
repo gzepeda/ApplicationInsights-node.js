@@ -67,55 +67,68 @@ class AutoCollectRequests {
             });
 	    }
     }
+    
+    /**
+     * Tracks a request synchronously (doesn't wait for response 'finish' event)
+     */
+    public static trackRequestSync(client: Client, request: http.ServerRequest, response:http.ServerResponse, ellapsedMilliseconds?: number, properties?:{ [key: string]: string; }, error?: any) {
+        if (!request || !response || !client) {
+            Logging.info("AutoCollectRequests.trackRequestSync was called with invalid parameters: ", !request, !response, !client);
+            return;
+        }
+        
+        // store data about the request
+        var requestDataHelper = new RequestDataHelper(request);
+        
+        AutoCollectRequests.endRequest(client, requestDataHelper, response, ellapsedMilliseconds, properties, error);
+    }
 
     /**
-     * Tracks a request
+     * Tracks a request by listening to the response 'finish' event
      */
     public static trackRequest(client:Client, request:http.ServerRequest, response:http.ServerResponse, properties?:{ [key: string]: string; }) {
         if (!request || !response || !client) {
             Logging.info("AutoCollectRequests.trackRequest was called with invalid parameters: ", !request, !response, !client);
             return;
         }
-
+        
         // store data about the request
         var requestDataHelper = new RequestDataHelper(request);
 
-        // async processing of the telemetry
-        var processRequest = (isError?:boolean) => {
-            setTimeout(() => {
-                requestDataHelper.onResponse(response, properties);
-                var data = requestDataHelper.getRequestData();
-                var tags = requestDataHelper.getRequestTags(client.context.tags);
-                client.track(data, tags);
-            }, 0);
-        };
-
         // response listeners
         if (response && response.once) {
-            response.once("finish", () => processRequest());
+            response.once("finish", () => { 
+                AutoCollectRequests.endRequest(client, requestDataHelper, response, null, properties, null);
+            });
         }
 
         // track a failed request if an error is emitted
         if (request && request.on) {
             request.on("error", (error:any) => {
-
-                if(!properties) {
-                    properties = <{[key: string]: string}>{};
-                }
-
-                if (error) {
-                    if (typeof error === "string") {
-                        properties["error"] = error;
-                    } else if (typeof error === "object") {
-                        for (var key in error) {
-                            properties[key] = error[key] && error[key].toString && error[key].toString();
-                        }
-                    }
-                }
-
-                processRequest(true);
+                AutoCollectRequests.endRequest(client, requestDataHelper, response, null, properties, error);
             });
         }
+    }
+    
+    private static endRequest(client: Client, requestDataHelper: RequestDataHelper, response: http.ServerResponse, ellapsedMilliseconds?: number, properties?: { [key: string]: string}, error?: any) {
+        if (error) {
+            if(!properties) {
+                properties = <{[key: string]: string}>{};
+            }
+
+            if (typeof error === "string") {
+                properties["error"] = error;
+            } else if (typeof error === "object") {
+                for (var key in error) {
+                    properties[key] = error[key] && error[key].toString && error[key].toString();
+                }
+            }
+        }
+        
+        requestDataHelper.onResponse(response, properties, ellapsedMilliseconds);
+        var data = requestDataHelper.getRequestData();
+        var tags = requestDataHelper.getRequestTags(client.context.tags);
+        client.track(data, tags);
     }
 
     public dispose() {

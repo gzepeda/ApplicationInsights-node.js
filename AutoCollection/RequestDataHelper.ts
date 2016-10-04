@@ -23,14 +23,14 @@ class RequestDataHelper {
     private legacySocketRemoteAddress:string;
     private userAgent: string;
 
-    private endTime:number;
+    private duration:number;
     private statusCode:number;
-    private errorProperties:{[key: string]:string};
+    private properties:{[key: string]:string};
 
     constructor(request:http.ServerRequest) {
         if (request) {
             this.method = request.method;
-            this.url = request.url;
+            this.url = this._getAbsoluteUrl(request);
             this.startTime = +new Date();
             this.rawHeaders = request.headers || (<any>request).rawHeaders;
             this.socketRemoteAddress = (<any>request).socket && (<any>request).socket.remoteAddress;
@@ -42,24 +42,29 @@ class RequestDataHelper {
         }
     }
 
-    public onResponse(response:http.ServerResponse, errorProperties?:{[key: string]: string}) {
-        this.endTime = +new Date;
+    public onResponse(response:http.ServerResponse, properties?:{[key: string]: string}, ellapsedMilliseconds?: number) {
+        if (ellapsedMilliseconds) {
+            this.duration = ellapsedMilliseconds;
+        } else {
+            var endTime = +new Date();
+            this.duration = endTime - this.startTime;
+        }
+        
         this.statusCode = response.statusCode;
-        this.errorProperties = errorProperties;
+        this.properties = properties;
     }
 
     public getRequestData():ContractsModule.Contracts.Data<ContractsModule.Contracts.RequestData> {
-        var duration = this.endTime - this.startTime;
         var requestData = new ContractsModule.Contracts.RequestData();
         requestData.httpMethod = this.method;
         requestData.id = Util.newGuid();
         requestData.name = this.method + " " + url.parse(this.url).pathname;
         requestData.startTime = (new Date(this.startTime)).toISOString();
         requestData.url = this.url;
-        requestData.duration = Util.msToTimeSpan(duration);
-        requestData.responseCode = this.statusCode.toString();
+        requestData.duration = Util.msToTimeSpan(this.duration);
+        requestData.responseCode = this.statusCode ? this.statusCode.toString() : null;
         requestData.success = this._isSuccess(this.statusCode);
-        requestData.properties = this.errorProperties;
+        requestData.properties = this.properties;
 
         var data = new ContractsModule.Contracts.Data<ContractsModule.Contracts.RequestData>();
         data.baseType = "Microsoft.ApplicationInsights.RequestData";
@@ -76,13 +81,37 @@ class RequestDataHelper {
         }
 
         newTags[RequestDataHelper.keys.locationIp] = this._getIp();
-        newTags[RequestDataHelper.keys.sessionId] = this._getSessionId();
+        newTags[RequestDataHelper.keys.sessionId] = this._getId("ai_session");
+        newTags[RequestDataHelper.keys.userId] = this._getId("ai_user");
         newTags[RequestDataHelper.keys.userAgent] = this.userAgent;
+        newTags[RequestDataHelper.keys.operationName] = this.method + " " + url.parse(this.url).pathname;
+        
         return newTags;
     }
 
     private _isSuccess(statusCode:number) {
-        return (statusCode < 400) && !this.errorProperties; // todo: this could probably be improved
+        return statusCode && (statusCode < 400); // todo: this could probably be improved
+    }
+    
+    private _getAbsoluteUrl(request:http.ServerRequest):string {
+        if (!request.headers) {
+            return request.url;
+        }
+        
+        var encrypted = <any>request.connection ? (<any>request.connection).encrypted : null;
+        var requestUrl = url.parse(request.url);
+
+        var pathName = requestUrl.pathname;
+        var search = requestUrl.search;
+        
+        var absoluteUrl = url.format({
+            protocol: encrypted ? "https" : "http",
+            host: request.headers.host,
+            pathname: pathName,
+            search: search
+        });
+            
+        return absoluteUrl;
     }
 
     private _getIp() {
@@ -116,15 +145,14 @@ class RequestDataHelper {
         return ip;
     }
 
-    private _getSessionId() {
-        var name = "ai_session";
+    private _getId(name: string) {
         var cookie = (this.rawHeaders && this.rawHeaders["cookie"] && 
             typeof this.rawHeaders["cookie"] === 'string' && this.rawHeaders["cookie"]) || "";
-        var value = RequestDataHelper.parseSessionId(Util.getCookie(name, cookie));
+        var value = RequestDataHelper.parseId(Util.getCookie(name, cookie));
         return value;
     }
-    
-    public static parseSessionId(cookieValue: string): string{
+  
+    public static parseId(cookieValue: string): string{
         return cookieValue.substr(0, cookieValue.indexOf('|'));
     }
 }

@@ -13,6 +13,7 @@ class AutoCollectExceptions {
     public static INSTANCE: AutoCollectExceptions = null;
 
     private _exceptionListenerHandle;
+    private _rejectionListenerHandle;
     private _client: Client;
     private _isInitialized: boolean;
 
@@ -34,21 +35,29 @@ class AutoCollectExceptions {
             this._isInitialized = true;
             var self = this;
             if (!this._exceptionListenerHandle) {
-                this._exceptionListenerHandle = (error:Error) => {
+                var handle = (reThrow: boolean, error: Error) => {
                     var data = AutoCollectExceptions.getExceptionData(error, false);
                     var envelope = this._client.getEnvelope(data);
                     this._client.channel.handleCrash(envelope);
-                    throw error;
+                    if (reThrow) {
+                        throw error;
+                    }
                 };
+                this._exceptionListenerHandle = handle.bind(this, true);
+                this._rejectionListenerHandle = handle.bind(this, false);
 
                 process.on("uncaughtException", this._exceptionListenerHandle);
+                process.on("unhandledRejection", this._rejectionListenerHandle);
             }
 
         } else {
             if (this._exceptionListenerHandle) {
                 process.removeListener("uncaughtException", this._exceptionListenerHandle);
+                process.removeListener("unhandledRejection", this._rejectionListenerHandle);
                 this._exceptionListenerHandle = undefined;
+                this._rejectionListenerHandle = undefined;
                 delete this._exceptionListenerHandle;
+                delete this._rejectionListenerHandle;
             }
         }
     }
@@ -58,14 +67,14 @@ class AutoCollectExceptions {
      * @param error the exception to track
      * @param handledAt where this exception was handled (leave null for unhandled)
      * @param properties additional properties
+     * @param measurements metrics associated with this event, displayed in Metrics Explorer on the portal. Defaults to empty.
      */
-    public static getExceptionData(error: Error, isHandled: boolean, properties?:{ [key: string]: string; }) {
-
+    public static getExceptionData(error: Error, isHandled: boolean, properties?:{ [key: string]: string; }, measurements?:{ [key: string]: number; }) {
         var exception = new ContractsModule.Contracts.ExceptionData();
         exception.handledAt = isHandled ? "User" : "Unhandled";
         exception.properties = properties;
         exception.severityLevel = ContractsModule.Contracts.SeverityLevel.Error;
-        exception.properties = properties;
+        exception.measurements = measurements;
         exception.exceptions = [];
 
         var stack = error["stack"];
@@ -157,12 +166,12 @@ class _StackFrame {
 
     constructor(frame: string, level: number) {
         this.level = level;
-        this.method = "unavailable";
+        this.method = "<no_method>";
         this.assembly = Util.trim(frame);
         var matches = frame.match(_StackFrame.regex);
         if (matches && matches.length >= 5) {
-            this.method = Util.trim(matches[2]);
-            this.fileName = Util.trim(matches[4]);
+            this.method = Util.trim(matches[2]) || this.method;
+            this.fileName = Util.trim(matches[4]) || "<no_filename>";
             this.line = parseInt(matches[5]) || 0;
         }
 
