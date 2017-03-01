@@ -1,4 +1,4 @@
-///<reference path="..\Declarations\node\node.d.ts" />
+///<reference path="..\typings\globals\node\index.d.ts" />
 
 import http = require("http");
 
@@ -71,7 +71,6 @@ class AutoCollectExceptions {
      */
     public static getExceptionData(error: Error, isHandled: boolean, properties?:{ [key: string]: string; }, measurements?:{ [key: string]: number; }) {
         var exception = new ContractsModule.Contracts.ExceptionData();
-        exception.handledAt = isHandled ? "User" : "Unhandled";
         exception.properties = properties;
         exception.severityLevel = ContractsModule.Contracts.SeverityLevel.Error;
         exception.measurements = measurements;

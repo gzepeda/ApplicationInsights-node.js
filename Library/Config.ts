@@ -1,4 +1,6 @@
-///<reference path="..\Declarations\node\node.d.ts" />
+///<reference path="..\typings\globals\node\index.d.ts" />
+
+import crypto = require('crypto');
 
 class Config {
 
@@ -10,6 +12,7 @@ class Config {
     public static legacy_ENV_iKey = "APPINSIGHTS_INSTRUMENTATION_KEY";
 
     public instrumentationKey: string;
+    public instrumentationKeyHash: string;
     public sessionRenewalMs: number;
     public sessionExpirationMs: number;
     public endpointUrl: string;
@@ -17,17 +20,22 @@ class Config {
     public maxBatchIntervalMs: number;
     public disableAppInsights: boolean;
 
+    // A list of domains for which correlation headers will not be added.
+    public correlationHeaderExcludedDomains: string[];
+
     constructor(instrumentationKey?: string) {
-        this.instrumentationKey = instrumentationKey || this._getInstrumentationKey();
-        this.endpointUrl = "http://dc.services.visualstudio.com/v2/track";
+        this.instrumentationKey = instrumentationKey || Config._getInstrumentationKey();
+        this.instrumentationKeyHash = Config._getStringHashBase64(this.instrumentationKey);
+        this.endpointUrl = "https://dc.services.visualstudio.com/v2/track";
         this.sessionRenewalMs = 30 * 60 * 1000;
         this.sessionExpirationMs = 24 * 60 * 60 * 1000;
         this.maxBatchSize = 250;
         this.maxBatchIntervalMs = 15000;
         this.disableAppInsights = false;
+        this.correlationHeaderExcludedDomains = ["*.blob.core.windows.net"];
     }
 
-    private _getInstrumentationKey() {
+    private static _getInstrumentationKey(): string {
         // check for both the documented env variable and the azure-prefixed variable
         var iKey = process.env[Config.ENV_iKey]
             || process.env[Config.ENV_azurePrefix + Config.ENV_iKey]
@@ -38,6 +46,13 @@ class Config {
         }
 
         return iKey;
+    }
+
+    private static _getStringHashBase64(value: string): string {
+        let hash = crypto.createHash('sha256');
+        hash.update(value);
+        let result = hash.digest('base64');
+        return result;
     }
 }
 

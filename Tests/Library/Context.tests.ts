@@ -1,6 +1,6 @@
-///<reference path="..\..\Declarations\node\node.d.ts" />
-///<reference path="..\..\Declarations\mocha\mocha.d.ts" />
-///<reference path="..\..\Declarations\sinon\sinon.d.ts" />
+///<reference path="..\..\typings\globals\node\index.d.ts" />
+///<reference path="..\..\typings\globals\mocha\index.d.ts" />
+///<reference path="..\..\typings\globals\sinon\index.d.ts" />
 
 import assert = require("assert");
 import sinon = require("sinon");
@@ -13,8 +13,7 @@ describe("Library/Context", () => {
         it("should initialize default context", () => {
             var context = new Context();
             var defaultkeys = [
-                context.keys.deviceMachineName,
-                context.keys.deviceOS,
+                context.keys.cloudRoleInstance,
                 context.keys.deviceOSVersion,
                 context.keys.internalSdkVersion
             ];

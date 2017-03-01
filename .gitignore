@@ -1,30 +1,32 @@
 # Ignore build files
 obj
-*.js
 *.d.ts
-*.js.map
 *.tgz
 package-version
 
-# Except imported Declarations and browser js SDK
+# Except imported Declarations and Typings
 !/Declarations/**
+!/typings/**
 
 # Ignore Node files
 node_modules/**
-
-# Ignore Visual Studio Code files
-.settings/**
 
 # Ignore Visual Studio files
 *.suo
 *.sln
 *.dat
+*.njsproj
 
 # Ignore webstorm files
 .idea
+*.iml
 
 # Ignore OS X files
 *.DS_Store
 
 # Ignore log files
 npm-debug.log
+
+
+*.js.map
+*.js

@@ -1,6 +1,6 @@
-///<reference path="..\..\Declarations\node\node.d.ts" />
-///<reference path="..\..\Declarations\mocha\mocha.d.ts" />
-///<reference path="..\..\Declarations\sinon\sinon.d.ts" />
+///<reference path="..\..\typings\globals\node\index.d.ts" />
+///<reference path="..\..\typings\globals\mocha\index.d.ts" />
+///<reference path="..\..\typings\globals\sinon\index.d.ts" />
 
 import assert = require("assert");
 import sinon = require("sinon");
@@ -50,6 +50,11 @@ describe("Library/Config", () => {
             assert(typeof config.maxBatchSize === "number");
             assert(typeof config.maxBatchIntervalMs === "number");
             assert(typeof config.disableAppInsights === "boolean");
+        });
+
+        it("should add azure blob storage domain to excluded list", () => {
+            var config = new Config("iKey");
+            assert.equal(config.correlationHeaderExcludedDomains[0].toString(), "*.blob.core.windows.net");
         });
     });
 });
